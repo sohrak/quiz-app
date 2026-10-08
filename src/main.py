@@ -84,28 +84,30 @@ class QuizApp:
     def build_home(self) -> ft.Control:
         deck_list = ft.ListView(expand=True, spacing=10)
         deck_list.controls.extend(self.build_deck_row(deck) for deck in self.storage.decks)
+        header_controls: list[ft.Control] = [
+            ft.Text("Study", size=32, weight=ft.FontWeight.BOLD),
+            ft.FilledButton(
+                "New deck",
+                icon=ft.Icons.ADD,
+                on_click=self.open_create_deck,
+            ),
+        ]
+        home_controls: list[ft.Control] = [
+            ft.Row(
+                controls=header_controls,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            ft.Text(
+                f"{len(self.storage.decks)} decks ready to study",
+                color="#667085",
+            ),
+            ft.Divider(height=20),
+            deck_list,
+        ]
 
         return ft.Container(
             content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text("Study", size=32, weight=ft.FontWeight.BOLD),
-                            ft.FilledButton(
-                                "New deck",
-                                icon=ft.Icons.ADD,
-                                on_click=self.open_create_deck,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Text(
-                        f"{len(self.storage.decks)} decks ready to study",
-                        color="#667085",
-                    ),
-                    ft.Divider(height=20),
-                    deck_list,
-                ],
+                controls=home_controls,
                 expand=True,
                 spacing=12,
             ),
@@ -178,13 +180,13 @@ class QuizApp:
             on_dismiss=lambda _: self.delete_deck(deck),
         )
 
-    def open_create_deck(self, _: ft.ControlEvent) -> None:
+    def open_create_deck(self) -> None:
         name_field = ft.TextField(label="Deck name", autofocus=True)
         front_field = ft.TextField(label="First card front")
         back_field = ft.TextField(label="First card back")
         error_text = ft.Text(color="#B42318", visible=False)
 
-        def create(_: ft.ControlEvent) -> None:
+        def create() -> None:
             name = name_field.value.strip()
             front = front_field.value.strip()
             back = back_field.value.strip()
@@ -203,6 +205,10 @@ class QuizApp:
             self.page.pop_dialog()
             self.show_home()
 
+        dialog_actions: list[ft.Control] = [
+            ft.TextButton("Cancel", on_click=lambda: self.page.pop_dialog()),
+            ft.FilledButton("Create", on_click=create),
+        ]
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Create a deck"),
@@ -211,10 +217,7 @@ class QuizApp:
                 tight=True,
                 spacing=12,
             ),
-            actions=[
-                ft.TextButton("Cancel", on_click=lambda _: self.page.pop_dialog()),
-                ft.FilledButton("Create", on_click=create),
-            ],
+            actions=dialog_actions,
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.show_dialog(dialog)
@@ -246,58 +249,61 @@ class QuizApp:
             color="#667085",
         )
 
-        def flip(_: ft.ControlEvent) -> None:
+        def flip() -> None:
             session.flip()
             card_text.value = session.current_text
             side_label.value = "BACK" if not session.showing_front else "FRONT"
             self.page.update()
 
-        def next_card(_: ft.ControlEvent) -> None:
+        def next_card() -> None:
             session.next_card()
             card_text.value = session.current_text
             side_label.value = "FRONT"
             progress.value = f"{session.index + 1} of {len(session.cards)}"
             self.page.update()
 
+        study_controls: list[ft.Control] = [
+            ft.OutlinedButton("Flip", icon=ft.Icons.FLIP, on_click=flip),
+            progress,
+            ft.FilledButton("Next", icon=ft.Icons.ARROW_FORWARD, on_click=next_card),
+        ]
+        quiz_controls: list[ft.Control] = [
+            ft.Row(
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="Back to decks",
+                        on_click=lambda: self.show_home(),
+                    ),
+                    ft.Text(self.session_title(session), weight=ft.FontWeight.BOLD),
+                    ft.Container(expand=True),
+                ],
+            ),
+            ft.Container(expand=True),
+            ft.Container(
+                content=ft.Column(
+                    controls=[side_label, card_text],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=20,
+                ),
+                bgcolor="#FFFFFF",
+                border=ft.Border.all(1, "#E4E7EC"),
+                border_radius=12,
+                padding=32,
+                expand=True,
+                alignment=ft.Alignment(0, 0),
+            ),
+            ft.Row(
+                controls=study_controls,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+        ]
+
         self.show(
             ft.Container(
                 content=ft.Column(
-                    controls=[
-                        ft.Row(
-                            controls=[
-                                ft.IconButton(
-                                    icon=ft.Icons.ARROW_BACK,
-                                    tooltip="Back to decks",
-                                    on_click=lambda _: self.show_home(),
-                                ),
-                                ft.Text(self.session_title(session), weight=ft.FontWeight.BOLD),
-                                ft.Container(expand=True),
-                            ],
-                        ),
-                        ft.Container(expand=True),
-                        ft.Container(
-                            content=ft.Column(
-                                controls=[side_label, card_text],
-                                alignment=ft.MainAxisAlignment.CENTER,
-                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                spacing=20,
-                            ),
-                            bgcolor="#FFFFFF",
-                            border=ft.Border.all(1, "#E4E7EC"),
-                            border_radius=12,
-                            padding=32,
-                            expand=True,
-                            alignment=ft.Alignment(0, 0),
-                        ),
-                        ft.Row(
-                            controls=[
-                                ft.OutlinedButton("Flip", icon=ft.Icons.FLIP, on_click=flip),
-                                progress,
-                                ft.FilledButton("Next", icon=ft.Icons.ARROW_FORWARD, on_click=next_card),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                    ],
+                    controls=quiz_controls,
                     expand=True,
                     spacing=16,
                 ),
