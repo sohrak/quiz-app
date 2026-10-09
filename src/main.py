@@ -69,8 +69,38 @@ class FlashCardSession:
 class QuizApp:
     def __init__(self, page: ft.Page) -> None:
         self.page = page
+        self.is_ios = page.platform == ft.PagePlatform.IOS
         self.storage = PlaceholderDeckStorage()
         self.session: FlashCardSession | None = None
+
+    def action_button(
+        self,
+        text: str,
+        icon: ft.IconData,
+        on_click,
+        *,
+        filled: bool = True,
+    ) -> ft.Control:
+        if self.is_ios:
+            button = ft.CupertinoFilledButton if filled else ft.CupertinoButton
+            return button(content=text, icon=icon, on_click=on_click)
+        if filled:
+            return ft.FilledButton(text, icon=icon, on_click=on_click)
+        return ft.OutlinedButton(text, icon=icon, on_click=on_click)
+
+    def text_field(
+        self,
+        label: str,
+        *,
+        autofocus: bool = False,
+    ) -> ft.CupertinoTextField | ft.TextField:
+        if self.is_ios:
+            return ft.CupertinoTextField(
+                placeholder_text=label,
+                autofocus=autofocus,
+                padding=12,
+            )
+        return ft.TextField(label=label, autofocus=autofocus)
 
     def show(self, content: ft.Control) -> None:
         self.page.clean()
@@ -85,12 +115,12 @@ class QuizApp:
         deck_list = ft.ListView(expand=True, spacing=10)
         deck_list.controls.extend(self.build_deck_row(deck) for deck in self.storage.decks)
         header_controls: list[ft.Control] = [
-            ft.Text("Study", size=32, weight=ft.FontWeight.BOLD),
-            ft.FilledButton(
-                "New deck",
-                icon=ft.Icons.ADD,
-                on_click=self.open_create_deck,
+            ft.Text(
+                "Study",
+                size=34 if self.is_ios else 32,
+                weight=ft.FontWeight.BOLD,
             ),
+            self.action_button("New deck", ft.Icons.ADD, self.open_create_deck),
         ]
         home_controls: list[ft.Control] = [
             ft.Row(
@@ -116,27 +146,35 @@ class QuizApp:
         )
 
     def build_deck_row(self, deck: Deck) -> ft.Control:
-        delete_button = ft.IconButton(
-            icon=ft.Icons.DELETE_OUTLINE,
-            tooltip="Delete deck",
-            icon_color="#B42318",
-            visible=False,
-            on_click=lambda _: self.delete_deck(deck),
+        delete_button = (
+            ft.CupertinoButton(
+                icon=ft.Icons.DELETE_OUTLINE,
+                tooltip="Delete deck",
+                icon_color="#B42318",
+                visible=False,
+                on_click=lambda _: self.delete_deck(deck),
+            )
+            if self.is_ios
+            else ft.IconButton(
+                icon=ft.Icons.DELETE_OUTLINE,
+                tooltip="Delete deck",
+                icon_color="#B42318",
+                visible=False,
+                on_click=lambda _: self.delete_deck(deck),
+            )
         )
-
-        def reveal_delete(_: ft.LongPressEndEvent) -> None:
-            delete_button.visible = not delete_button.visible
-            self.page.update()
 
         row = ft.GestureDetector(
             on_tap=lambda _: self.open_deck(deck),
-            on_long_press_end=reveal_delete,
             content=ft.Container(
                 content=ft.Row(
                     controls=[
                         ft.Container(
-                            content=ft.Icon(ft.Icons.STYLE, color="#147D72"),
-                            bgcolor="#E3F3EF",
+                            content=ft.Icon(
+                                ft.Icons.STYLE,
+                                color="#007AFF" if self.is_ios else "#147D72",
+                            ),
+                            bgcolor="#E5F1FF" if self.is_ios else "#E3F3EF",
                             padding=12,
                             border_radius=8,
                         ),
@@ -159,8 +197,8 @@ class QuizApp:
                 ),
                 padding=12,
                 bgcolor="#FFFFFF",
-                border=ft.Border.all(1, "#E4E7EC"),
-                border_radius=8,
+                border=ft.Border.all(0.5 if self.is_ios else 1, "#D1D1D6" if self.is_ios else "#E4E7EC"),
+                border_radius=10 if self.is_ios else 8,
             ),
         )
 
@@ -181,9 +219,9 @@ class QuizApp:
         )
 
     def open_create_deck(self) -> None:
-        name_field = ft.TextField(label="Deck name", autofocus=True)
-        front_field = ft.TextField(label="First card front")
-        back_field = ft.TextField(label="First card back")
+        name_field = self.text_field("Deck name", autofocus=True)
+        front_field = self.text_field("First card front")
+        back_field = self.text_field("First card back")
         error_text = ft.Text(color="#B42318", visible=False)
 
         def create() -> None:
@@ -206,20 +244,40 @@ class QuizApp:
             self.show_home()
 
         dialog_actions: list[ft.Control] = [
-            ft.TextButton("Cancel", on_click=lambda: self.page.pop_dialog()),
-            ft.FilledButton("Create", on_click=create),
-        ]
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Create a deck"),
-            content=ft.Column(
-                controls=[name_field, front_field, back_field, error_text],
-                tight=True,
-                spacing=12,
+            (
+                ft.CupertinoButton(
+                    content="Cancel",
+                    on_click=lambda: self.page.pop_dialog(),
+                )
+                if self.is_ios
+                else ft.TextButton("Cancel", on_click=lambda: self.page.pop_dialog())
             ),
-            actions=dialog_actions,
-            actions_alignment=ft.MainAxisAlignment.END,
+            (
+                ft.CupertinoButton(content="Create", on_click=create)
+                if self.is_ios
+                else ft.FilledButton("Create", on_click=create)
+            ),
+        ]
+        dialog_content = ft.Column(
+            controls=[name_field, front_field, back_field, error_text],
+            tight=True,
+            spacing=12,
         )
+        if self.is_ios:
+            dialog = ft.CupertinoAlertDialog(
+                modal=True,
+                title=ft.Text("Create a deck"),
+                content=dialog_content,
+                actions=dialog_actions,
+            )
+        else:
+            dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Create a deck"),
+                content=dialog_content,
+                actions=dialog_actions,
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
         self.page.show_dialog(dialog)
 
     def delete_deck(self, deck: Deck) -> None:
@@ -243,7 +301,6 @@ class QuizApp:
             weight=ft.FontWeight.BOLD,
             text_align=ft.TextAlign.CENTER,
         )
-        side_label = ft.Text("FRONT", size=12, color="#667085")
         progress = ft.Text(
             f"{session.index + 1} of {len(session.cards)}",
             color="#667085",
@@ -252,44 +309,50 @@ class QuizApp:
         def flip() -> None:
             session.flip()
             card_text.value = session.current_text
-            side_label.value = "BACK" if not session.showing_front else "FRONT"
             self.page.update()
 
         def next_card() -> None:
             session.next_card()
             card_text.value = session.current_text
-            side_label.value = "FRONT"
             progress.value = f"{session.index + 1} of {len(session.cards)}"
             self.page.update()
 
         study_controls: list[ft.Control] = [
-            ft.OutlinedButton("Flip", icon=ft.Icons.FLIP, on_click=flip),
+            self.action_button("Flip", ft.Icons.FLIP, flip, filled=False),
             progress,
-            ft.FilledButton("Next", icon=ft.Icons.ARROW_FORWARD, on_click=next_card),
+            self.action_button("Next", ft.Icons.ARROW_FORWARD, next_card),
         ]
         quiz_controls: list[ft.Control] = [
             ft.Row(
                 controls=[
-                    ft.IconButton(
-                        icon=ft.Icons.ARROW_BACK,
-                        tooltip="Back to decks",
-                        on_click=lambda: self.show_home(),
+                    (
+                        ft.CupertinoButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            tooltip="Back to decks",
+                            on_click=lambda: self.show_home(),
+                        )
+                        if self.is_ios
+                        else ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            tooltip="Back to decks",
+                            on_click=lambda: self.show_home(),
+                        )
                     ),
                     ft.Text(self.session_title(session), weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
                 ],
             ),
-            ft.Container(expand=True),
             ft.Container(
                 content=ft.Column(
-                    controls=[side_label, card_text],
+                    controls=[card_text],
+                    expand=True,
                     alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                     spacing=20,
                 ),
                 bgcolor="#FFFFFF",
-                border=ft.Border.all(1, "#E4E7EC"),
-                border_radius=12,
+                border=ft.Border.all(0.5 if self.is_ios else 1, "#D1D1D6" if self.is_ios else "#E4E7EC"),
+                border_radius=14 if self.is_ios else 12,
                 padding=32,
                 expand=True,
                 alignment=ft.Alignment(0, 0),
@@ -317,10 +380,11 @@ class QuizApp:
 
 
 def main(page: ft.Page) -> None:
+    is_ios = page.platform == ft.PagePlatform.IOS
     page.title = "Study"
-    page.bgcolor = "#F7F8F6"
+    page.bgcolor = "#F2F2F7" if is_ios else "#F7F8F6"
     page.padding = 0
-    page.theme = ft.Theme(color_scheme_seed="#147D72")
+    page.theme = ft.Theme(color_scheme_seed="#007AFF" if is_ios else "#147D72")
     QuizApp(page).show_home()
 
 
